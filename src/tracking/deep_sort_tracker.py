@@ -83,7 +83,9 @@ class DeepSORTTracker:
         iou_threshold: IoU gate for valid association.
         max_cosine_distance: Cosine distance gate for appearance matching.
         nn_budget: Max gallery size per track for nearest-neighbor distance.
-        embedding_model: Optional path to a re-ID CNN (unused in lightweight mode).
+        embedding_model: Optional path to a re-ID CNN weights file.
+        use_reid_cnn: If True, use MobileNetV2 Re-ID CNN even without pre-trained weights.
+        device: Device for Re-ID CNN inference ("cpu" or "cuda").
         kalman_params: Kalman filter parameters.
     """
 
@@ -95,6 +97,8 @@ class DeepSORTTracker:
         max_cosine_distance: float = 0.4,
         nn_budget: int = 100,
         embedding_model: Optional[str] = None,
+        use_reid_cnn: bool = False,
+        device: str = "cpu",
         kalman_params: Dict[str, float] | None = None,
     ) -> None:
         self.max_age = max_age
@@ -108,10 +112,23 @@ class DeepSORTTracker:
         self._frame_count: int = 0
         self.id_switches: int = 0
 
-        # Appearance embedder (lightweight fallback)
-        self._embedder = SimpleEmbedder()
-        if embedding_model:
-            logger.info(f"External re-ID model: {embedding_model} (not loaded — using histogram fallback)")
+        # Appearance embedder — Re-ID CNN or histogram fallback
+        if use_reid_cnn or embedding_model:
+            try:
+                from src.tracking.reid_embedder import ReIDEmbedder
+                self._embedder = ReIDEmbedder(
+                    model_path=embedding_model,
+                    device=device,
+                )
+                self._embedding_dim = 128
+                logger.info("Using Re-ID CNN embedder (MobileNetV2)")
+            except ImportError:
+                logger.warning("torch/torchvision not available — falling back to histogram embedder")
+                self._embedder = SimpleEmbedder()
+                self._embedding_dim = 48
+        else:
+            self._embedder = SimpleEmbedder()
+            self._embedding_dim = 48
 
         # Gallery of embeddings per track ID
         self._gallery: Dict[int, List[np.ndarray]] = {}
@@ -170,7 +187,7 @@ class DeepSORTTracker:
         if frame is not None and len(boxes) > 0:
             det_embeddings = self._embedder.extract(frame, boxes)
         else:
-            det_embeddings = np.zeros((len(boxes), 48), dtype=np.float32)
+            det_embeddings = np.zeros((len(boxes), self._embedding_dim), dtype=np.float32)
 
         # ── 3. Build combined cost matrix ────────────────────────────────
         if len(boxes) > 0 and len(self.tracks) > 0:

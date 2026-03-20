@@ -22,6 +22,7 @@ from src.pipeline.pipeline_config import PipelineConfig
 from src.utils.logger import get_logger
 from src.utils.timer import FPSCounter, LatencyTracker
 from src.utils.visualization import draw_tracks, draw_hud
+from src.utils.threaded_capture import ThreadedCapture
 
 
 class HybridPipeline:
@@ -114,13 +115,19 @@ class HybridPipeline:
             Dictionary with ``avg_fps``, ``total_frames``, ``id_switches``.
         """
         source = self.cfg.source
-        cap = cv2.VideoCapture(int(source) if source.isdigit() else source)
-        if not cap.isOpened():
-            self.logger.error(f"Cannot open source: {source}")
-            return {"avg_fps": 0, "total_frames": 0, "id_switches": 0}
+        use_threaded = getattr(self.cfg, 'use_threaded_capture', False)
 
-        frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if use_threaded:
+            cap = ThreadedCapture(source)
+            cap.start()
+            frame_w, frame_h = cap.width, cap.height
+        else:
+            cap = cv2.VideoCapture(int(source) if source.isdigit() else source)
+            if not cap.isOpened():
+                self.logger.error(f"Cannot open source: {source}")
+                return {"avg_fps": 0, "total_frames": 0, "id_switches": 0}
+            frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.logger.info(f"Source opened: {frame_w}×{frame_h}")
 
         if self.cfg.save_video:
@@ -190,7 +197,10 @@ class HybridPipeline:
         except KeyboardInterrupt:
             self.logger.info("Interrupted by user.")
         finally:
-            cap.release()
+            if use_threaded:
+                cap.stop()
+            else:
+                cap.release()
             if self._writer is not None:
                 self._writer.release()
             cv2.destroyAllWindows()
