@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Models (large files)
+models/*.pt
+models/*.onnx
+models/*.engine
+!models/.gitkeep
+
+# Data outputs
+data/output/
+!data/.gitkeep
+
+# Benchmark results
+benchmarks/results.json
+
+# C++ build
+build/
+cmake-build-*/
+*.o
+*.exe
+
+# Logs
+*.log
