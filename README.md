@@ -5,6 +5,8 @@
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.8+-green.svg)](https://opencv.org)
 [![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-purple.svg)](https://docs.ultralytics.com)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org)
+[![Tests](https://img.shields.io/badge/Tests-72%20passing-brightgreen.svg)](#testing)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A production-grade **hybrid detection + tracking pipeline** combining **YOLOv8** with classical tracking methods (SORT / DeepSORT), optimized for real-time edge inference. Implements Kalman filtering, optical flow (Lucas-Kanade), and feature extraction (SIFT / ORB) in a modular Python + C++ architecture.
 
@@ -115,15 +117,18 @@ Frame → Capture (OpenCV) → Detection (YOLOv8) → Association (Hungarian + I
 RT-Object-Detection-Tracking/
 ├── src/
 │   ├── detection/          # YOLOv8 PyTorch + ONNX detectors, export utility
-│   ├── tracking/           # SORT, DeepSORT trackers, Track class, association
+│   ├── tracking/           # SORT, DeepSORT, Re-ID CNN, MOT metrics, association
 │   ├── features/           # SIFT/ORB extractors, Lucas-Kanade optical flow
 │   ├── filters/            # Kalman filter (constant-velocity bounding-box model)
 │   ├── pipeline/           # Hybrid pipeline, pipeline config dataclass
-│   └── utils/              # Logger, FPS counter, config loader, visualization
+│   └── utils/              # Logger, FPS counter, config, visualization, threaded capture
 ├── cpp/
 │   └── opencv_pipeline/    # C++ inference pipeline (OpenCV DNN)
 │       ├── include/        # Headers (frame_reader, preprocessor, onnx_inference)
 │       └── src/            # Implementations + main.cpp
+├── tests/                  # 72 unit tests (pytest)
+├── notebooks/
+│   └── demo.ipynb          # Interactive demo notebook
 ├── models/                 # Model weights (.pt, .onnx)
 ├── data/                   # Input videos / output
 ├── configs/
@@ -134,7 +139,10 @@ RT-Object-Detection-Tracking/
 │   ├── run_pipeline.py     # Main CLI entry point
 │   └── export_onnx.py      # ONNX export helper
 ├── CMakeLists.txt          # Top-level C++ build
+├── Dockerfile              # Multi-stage Docker build
+├── pyproject.toml          # pip-installable package config
 ├── requirements.txt        # Python dependencies
+├── LICENSE                 # MIT license
 └── README.md
 ```
 
@@ -175,6 +183,43 @@ python scripts/run_pipeline.py --backend onnx --model models/yolov8n.onnx --sour
 
 ```bash
 python benchmarks/benchmark.py --source video.mp4 --frames 500
+```
+
+### 6. Run Tests
+
+```bash
+pip install pytest pytest-cov
+python -m pytest tests/ -v
+```
+
+### 7. Docker
+
+```bash
+# Build
+docker build -t rt-pipeline .
+
+# Run with video file
+docker run --rm -it -v $(pwd)/data:/app/data rt-pipeline --source data/video.mp4 --no-show
+
+# Run with GPU
+docker run --rm -it --gpus all rt-pipeline --source 0 --device cuda
+```
+
+### 8. Install as Package
+
+```bash
+pip install -e .
+# Then use CLI entry points:
+rt-pipeline --source 0
+rt-export --model models/yolov8n.pt
+rt-benchmark --source video.mp4
+```
+
+### 9. Demo Notebook
+
+```bash
+pip install jupyter matplotlib
+jupyter notebook notebooks/demo.ipynb
 ```
 
 ---
@@ -242,10 +287,52 @@ Constant-velocity model in `[cx, cy, area, aspect_ratio]` space. Predicts object
 Predict → IoU cost matrix → Hungarian assignment → Update/Create/Prune tracks.
 
 ### DeepSORT
-Extends SORT with appearance embeddings. Uses a lightweight colour-histogram embedder (or pluggable re-ID CNN). Combines IoU + cosine distance for association, reducing ID switches during occlusions.
+Extends SORT with appearance embeddings. Supports two embedder modes:
+- **Re-ID CNN** (MobileNetV2 → 128-D L2-normalized embeddings) — enabled via `use_reid_cnn=True`
+- **Histogram fallback** (colour histogram, 48-D) — lightweight, no extra model needed
+
+Combines IoU + cosine appearance distance for association, reducing ID switches during occlusions.
 
 ### Optical Flow (Lucas-Kanade)
 Sparse optical flow tracks bounding-box centers between frames for motion estimation, useful for skip-frame detection modes.
+
+---
+
+## Testing
+
+**72 unit tests** across 6 test files:
+
+| Test Module | Tests | Covers |
+|---|---|---|
+| `test_utils` | 18 | Logger, FPS counter, latency tracker, config loader |
+| `test_kalman` | 8 | Coordinate conversion, Kalman predict/update, velocity |
+| `test_tracking` | 21 | IoU, cosine distance, Hungarian matching, Track, SORT |
+| `test_mot_metrics` | 9 | MOTA, MOTP, IDF1, ID switches, mostly-tracked |
+| `test_features` | 11 | SIFT, ORB, optical flow |
+| `test_pipeline_config` | 5 | Config dataclass, YAML parsing |
+
+```bash
+python -m pytest tests/ -v --tb=short
+```
+
+---
+
+## MOT Evaluation Metrics
+
+Built-in `MOTAccumulator` computes standard multi-object tracking metrics:
+
+| Metric | Description |
+|---|---|
+| **MOTA** | Multiple Object Tracking Accuracy |
+| **MOTP** | Multiple Object Tracking Precision |
+| **IDF1** | ID F1 Score (identity-aware) |
+| **ID Switches** | Number of track identity changes |
+| **MT / ML** | Mostly Tracked / Mostly Lost ratios |
+
+```python
+from src.tracking.mot_metrics import evaluate_mot
+metrics = evaluate_mot(ground_truth, predictions, iou_threshold=0.5)
+```
 
 ---
 
