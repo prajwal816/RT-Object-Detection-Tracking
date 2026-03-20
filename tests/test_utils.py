@@ -29,11 +29,20 @@ class TestLogger:
         assert logger1 is logger2
 
     def test_logger_with_file(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = tempfile.mkdtemp()
+        try:
             log_file = os.path.join(tmpdir, "test.log")
             logger = get_logger("test_file_logger", log_file=log_file)
             logger.info("Test message")
             assert Path(log_file).exists()
+        finally:
+            # Close file handlers to avoid Windows file-lock errors
+            for handler in logger.handlers[:]:
+                if hasattr(handler, 'close'):
+                    handler.close()
+                logger.removeHandler(handler)
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 class TestFPSCounter:
