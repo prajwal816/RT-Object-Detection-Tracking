@@ -48,6 +48,7 @@ class PipelineConfig:
     save_fps: int = 25
     log_level: str = "INFO"
     skip_frames: int = 0
+    use_threaded_capture: bool = False
 
     @classmethod
     def from_dict(cls, cfg: Dict[str, Any]) -> "PipelineConfig":
@@ -92,4 +93,5 @@ class PipelineConfig:
             save_fps=pipe.get("save_fps", cls.save_fps),
             log_level=pipe.get("log_level", cls.log_level),
             skip_frames=pipe.get("skip_frames", cls.skip_frames),
+            use_threaded_capture=pipe.get("threaded_capture", cls.use_threaded_capture),
         )
