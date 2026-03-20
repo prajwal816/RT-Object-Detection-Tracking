@@ -39,7 +39,7 @@ class TestMOTAccumulator:
         metrics = acc.compute()
         assert metrics["false_negatives"] == 5
         assert metrics["true_positives"] == 0
-        assert metrics["MOTA"] < 0.0  # negative MOTA for all misses
+        assert metrics["MOTA"] <= 0.0  # MOTA = 0 when all GT are misses
 
     def test_all_false_positives(self):
         """No GT — all predictions are false positives."""
