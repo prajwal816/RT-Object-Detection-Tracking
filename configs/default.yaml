@@ -1,0 +1,60 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Real-Time Object Detection & Tracking — Default Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Detection ─────────────────────────────────────────────────────────────────
+detection:
+  model_path: "models/yolov8n.pt"          # YOLOv8 model weights
+  onnx_path: "models/yolov8n.onnx"         # ONNX export path
+  backend: "pytorch"                        # pytorch | onnx
+  confidence_threshold: 0.45
+  nms_threshold: 0.50
+  input_size: [640, 640]
+  device: "cpu"                             # cpu | cuda | cuda:0
+  classes: null                             # null = all classes, or list [0, 1, 2]
+
+# ── Tracking ──────────────────────────────────────────────────────────────────
+tracking:
+  tracker_type: "sort"                      # sort | deepsort
+  max_age: 30                               # frames before track is deleted
+  min_hits: 3                               # min detections to confirm track
+  iou_threshold: 0.3                        # IoU gate for association
+
+  # Kalman filter noise parameters
+  kalman:
+    process_noise: 1.0
+    measurement_noise: 1.0
+    estimation_error: 10.0
+
+  # DeepSORT-specific
+  deepsort:
+    max_cosine_distance: 0.4
+    nn_budget: 100
+    embedding_model: null                   # path to re-ID CNN (optional)
+
+# ── Feature Extraction ────────────────────────────────────────────────────────
+features:
+  extractor: "orb"                          # sift | orb
+  max_keypoints: 500
+  optical_flow:
+    enabled: true
+    win_size: [15, 15]
+    max_level: 3
+    criteria_eps: 0.03
+    criteria_max_iter: 10
+
+# ── Pipeline ──────────────────────────────────────────────────────────────────
+pipeline:
+  source: "0"                               # webcam index or video file path
+  output_dir: "data/output"
+  show_display: true
+  save_video: false
+  save_fps: 25
+  log_level: "INFO"                         # DEBUG | INFO | WARNING | ERROR
+  skip_frames: 0                            # detect every N frames (0 = every frame)
+
+# ── Benchmarking ──────────────────────────────────────────────────────────────
+benchmark:
+  warmup_frames: 30
+  eval_frames: 300
+  report_path: "benchmarks/results.json"
